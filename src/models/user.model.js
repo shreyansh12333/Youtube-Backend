@@ -1,4 +1,4 @@
-import mongoose, { Mongoose, Schema } from "mongoose";
+import mongoose, { Schema } from "mongoose";
 const userSchema = new Schema(
   {
     username: {
@@ -48,11 +48,11 @@ const userSchema = new Schema(
     timestamps: true,
   }
 );
-userSchema.pre("save", function (next) {
+userSchema.pre("save", async function (next) {
   if (!this.isModified("password")) {
     return next();
   } else {
-    this.password = bcrypt.hash(this.password, 10);
+    this.password = await bcrypt.hash(this.password, 10);
     next();
   }
 });
@@ -73,7 +73,7 @@ userSchema.methods.generateAccessToken = function () {
     }
   );
 };
-userSchema.methods.refreshToken = function () {
+userSchema.methods.refreshTokens = function () {
   jwt.sign(
     {
       _id: this._id,
@@ -87,4 +87,4 @@ userSchema.methods.refreshToken = function () {
     }
   );
 };
-export const User = Mongoose.model("User", userSchema);
+export const User = mongoose.model("User", userSchema);
