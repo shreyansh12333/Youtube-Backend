@@ -1,4 +1,6 @@
 import mongoose, { Schema } from "mongoose";
+import bcrypt from "bcrypt";
+import jwt from "jsonwebtoken";
 const userSchema = new Schema(
   {
     username: {
@@ -24,7 +26,6 @@ const userSchema = new Schema(
     },
     avatar: {
       type: String,
-      //  cloudnary url
       required: true,
     },
     coverImage: {
@@ -87,4 +88,5 @@ userSchema.methods.refreshTokens = function () {
     }
   );
 };
+
 export const User = mongoose.model("User", userSchema);
