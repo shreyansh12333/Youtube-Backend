@@ -22,4 +22,41 @@ const uploadOnCloudinary = async (localFilePath) => {
     return null;
   }
 };
-export { uploadOnCloudinary };
+
+const deleteFromCloudinary = async (url, resourceType = "auto") => {
+  try {
+    if (!url || typeof url !== "string") {
+      return null;
+    }
+
+    const cleanUrl = url.split("?")[0];
+    const uploadIndex = cleanUrl.indexOf("/upload/");
+
+    if (uploadIndex === -1) {
+      return null;
+    }
+
+    const pathAfterUpload = cleanUrl.substring(uploadIndex + 8);
+    const pathWithoutVersion = pathAfterUpload.replace(/^v\d+\//, "");
+    const lastDotIndex = pathWithoutVersion.lastIndexOf(".");
+    const publicId =
+      lastDotIndex === -1
+        ? pathWithoutVersion
+        : pathWithoutVersion.substring(0, lastDotIndex);
+
+    const result = await cloudinary.uploader.destroy(
+      decodeURIComponent(publicId),
+      {
+        resource_type: resourceType,
+        invalidate: true,
+      }
+    );
+
+    return result.result === "ok" ? result : null;
+  } catch (error) {
+    console.error("Error deleting from Cloudinary:", error);
+    return null;
+  }
+};
+
+export { uploadOnCloudinary, deleteFromCloudinary };
