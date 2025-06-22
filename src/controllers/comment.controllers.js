@@ -1,9 +1,9 @@
 import mongoose, { isValidObjectId } from "mongoose";
-import { asyncHandler } from "../utils/asynchandler";
-import { ApiError } from "../utils/apierror";
-import { Video } from "../models/video.model";
-import { Comment } from "../models/comments";
-import { ApiResponse } from "../utils/apiresponse";
+import { asyncHandler } from "../utils/asynchandler.js";
+import { ApiError } from "../utils/apierror.js";
+import { Video } from "../models/video.model.js";
+import { Comment } from "../models/comments.js";
+import { ApiResponse } from "../utils/apiresponse.js";
 
 const addCommentToVideo = asyncHandler(async (req, res) => {
   const { content } = req.body;
@@ -97,5 +97,66 @@ const deleteComment = asyncHandler(async (req, res) => {
     );
 });
 
+const getVideoComments = asyncHandler(async (req, res) => {
+  const { videoId } = req.params;
 
-export { addCommentToVideo, updateComment, deleteComment };
+  if (!isValidObjectId(videoId)) {
+    throw new ApiError(400, "VideoId must be a valid ObjectId");
+  }
+
+  const { page = 1, limit = 10 } = req.query;
+
+  const pageNum = Math.max(1, parseInt(page) || 1);
+  const limitNum = Math.min(Math.max(1, parseInt(limit) || 10), 100);
+
+  if (isNaN(pageNum) || isNaN(limitNum)) {
+    throw new ApiError(400, "Page and limit must be valid numbers");
+  }
+
+  const skip = (pageNum - 1) * limitNum;
+
+  const video = await Video.findById(videoId);
+  if (!video) {
+    throw new ApiError(404, "Video does not exist");
+  }
+
+  const [comments, totalComments] = await Promise.all([
+    Comment.find({ video: videoId })
+      .populate("owner", "username avatar")
+      .sort({ createdAt: -1 })
+      .limit(limitNum)
+      .skip(skip)
+      .lean(),
+    Comment.countDocuments({ video: videoId }),
+  ]);
+
+  if (comments.length === 0 && pageNum > 1) {
+    throw new ApiError(404, "No comments found for this page");
+  }
+
+  const totalPages = Math.ceil(totalComments / limitNum);
+  const hasNextPage = pageNum < totalPages;
+  const hasPrevPage = pageNum > 1;
+
+  res.status(200).json(
+    new ApiResponse(
+      200,
+      {
+        comments,
+        pagination: {
+          totalComments,
+          totalPages,
+          currentPage: pageNum,
+          perPage: limitNum,
+          hasNextPage,
+          hasPrevPage,
+          nextPage: hasNextPage ? pageNum + 1 : null,
+          prevPage: hasPrevPage ? pageNum - 1 : null,
+        },
+      },
+      "Comments fetched successfully"
+    )
+  );
+});
+
+export { addCommentToVideo, updateComment, deleteComment, getVideoComments };

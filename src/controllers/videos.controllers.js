@@ -206,6 +206,83 @@ const deleteVideo = asyncHandler(async (req, res) => {
     .json(new ApiResponse(200, videoData, "Video deleted successfully"));
 });
 
+const getAllVideos = asyncHandler(async (req, res) => {
+  const { page = 1, limit = 10, query, sortBy, sortType, userId } = req.query;
+  const pageNum = Math.max(parseInt(page), 1);
+  const limitNum = Math.min(Math.max(parseInt(limit) || 10, 1), 100);
+  const skip = (pageNum - 1) * limitNum;
+  const filter = {};
+
+  if (userId) {
+    if (!isValidObjectId(userId))
+      throw new ApiError(400, "UserId does not exist");
+    filter.owner = userId;
+  }
+
+  const sortArray = ["views", "title", "description", "createdAt", "updatedAt"];
+
+  const sort = {};
+  if (sortBy && sortArray.includes(sortBy)) {
+    sort[sortBy] = sortType === "des" ? -1 : 1;
+  } else {
+    sort.createdAt = -1;
+  }
+
+  if (query?.trim()) {
+    filter.$or = [
+      { title: { $regex: query.trim(), $options: "i" } },
+      { description: { $regex: query.trim(), $options: "i" } },
+    ];
+  }
+
+  const [videos, totalVideos] = await Promise.all([
+    Video.find(filter)
+      .select("-__v")
+      .skip(skip)
+      .limit(limitNum)
+      .sort(sort)
+      .lean(),
+    Video.countDocuments(filter),
+  ]);
+
+  const totalPages = Math.ceil(totalVideos / limitNum);
+
+  const hasNextPage = pageNum < totalPages;
+
+  const hasPrevPage = pageNum > 1;
+
+  const response = {
+    videos,
+    pagination: {
+      currentPage: pageNum,
+      totalPages,
+      totalVideos,
+      videosPerPage: limitNum,
+      hasNextPage,
+      hasPrevPage,
+      nextPage: nextPage ? pageNum + 1 : null,
+      prevPage: prevPage ? pageNum - 1 : null,
+    },
+    filters: {
+      query: query || null,
+      sortBy,
+      sortType,
+      userId: userId || null,
+    },
+  };
+
+  if (videos.length === 0) {
+    return res
+      .status(200)
+      .json(
+        new ApiResponse(200, response, "No videos found matching the criteria")
+      );
+  }
+
+  res
+    .status(200)
+    .json(new ApiResponse(200, response, "Videos fetched successfully"));
+});
 
 export {
   publishAVideo,
@@ -213,4 +290,5 @@ export {
   togglePublishStatus,
   updateVideo,
   deleteVideo,
+  getAllVideos,
 };
